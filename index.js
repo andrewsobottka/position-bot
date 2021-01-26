@@ -27,9 +27,9 @@ const server = http.createServer(app).listen(PORT, () => console.log(`Listening 
 
 
 //----- WEB 3 CONFIG -----//
-const main_URL = 'https://mainnet.infura.io/v3/201292230a8a4241b6ba2b14a00fca47'// TEMPORARY FOR TESTING
-//const web3 = new Web3(new HDWalletProvider(process.env.PRIVATE_KEY, process.env.RPC_URL))
-const web3 = new Web3(main_URL)
+//const main_URL = 'https://mainnet.infura.io/v3/201292230a8a4241b6ba2b14a00fca47'// TEMPORARY FOR TESTING
+//const web3 = new Web3(main_URL)
+const web3 = new Web3(new HDWalletProvider(process.env.PRIVATE_KEY, process.env.RPC_URL))
 web3.eth.transactionConfirmationBlocks = 1;
 
 //----- CONTRACT DETAILS for 1inch -----//
@@ -41,20 +41,21 @@ pool.transactionConfirmationBlocks = 1;
 const targetTokenData = contractData[inputs.targetToken]
 const targetToken = new web3.eth.Contract(targetTokenData.abi, targetTokenData.address)
 
-//------ CONTRACT for USDC -----//
+//------ CONTRACT for Base Token -----//
 const baseTokenData = contractData[inputs.baseToken]
-const baseToken = new web3.eth.Contract(baseTokenData.abi, baseTokenData.address)
+// n/a Base Token is ETHEREUM - const baseToken = new web3.eth.Contract(baseTokenData.abi, baseTokenData.address)
+
 
 //----- USER INPUTS -----//
 //const baseTokenApproved = web3.utils.toWei(inputs.baseTokenApproved, 'mwei') // converted to units of wei
-var minTrade = web3.utils.toWei(inputs.minTradeSize, 'mwei') // In units of base token, converted to no decimals
-var maxTrade = web3.utils.toWei(inputs.maxTradeSize, 'mwei') // In units of base token, converted to no decimals
+var minTrade = web3.utils.toWei(inputs.minTradeSize, 'ether') // In units of base token, converted to no decimals
+var maxTrade = web3.utils.toWei(inputs.maxTradeSize, 'ether') // In units of base token, converted to no decimals
 var limitPriceInverse = web3.utils.toWei((1/ inputs.maxLimitPrice).toString(),'ether') // min num. of target tokens to receive per 1 base token
-var limitPrice = web3.utils.toWei(inputs.maxLimitPrice, 'mwei') // max base tokens to pay for 1 target token
-var baseTokenApproved = web3.utils.toWei(inputs.targetPosition, 'mwei') // Setting approval request equal to target position
+var limitPrice = web3.utils.toWei(inputs.maxLimitPrice, 'ether') // max base tokens to pay for 1 target token
+var baseTokenApproved = web3.utils.toWei(inputs.targetPosition, 'ether') // Setting approval request equal to target position
 var tradingAccount = process.env.ACCOUNT
 
-console.log('Limit price of ',targetTokenData.symbol,'is',web3.utils.fromWei(limitPrice,'mwei'),baseTokenData.symbol)
+console.log('Limit price of ',targetTokenData.symbol,'is',web3.utils.fromWei(limitPrice,'ether'),baseTokenData.symbol)
 console.log('Must receive at least ',web3.utils.fromWei(limitPriceInverse, 'ether'),targetTokenData.symbol,'for every 1',baseTokenData.symbol)
 
 let splitExchanges = [
@@ -104,6 +105,10 @@ async function monitorPrice() {
     balance = web3.utils.fromWei(balance.toString(), 'ether')
     console.log(targetTokenData.symbol, 'balance in Wallet: ', balance)
     
+    balance = await web3.eth.getBalance(process.env.ACCOUNT)
+    balance = web3.utils.fromWei(balance.toString(), 'ether')
+    console.log(baseTokenData.symbol, 'balance in Wallet: ', balance)
+
     if (balance >= inputs.targetPosition) {
         console.log('Target balance reached!')
         monitoringPrice = false
@@ -123,58 +128,59 @@ async function monitorPrice() {
         return
     }
     */
+
     //----- Swap -----//
     console.log('Checking price for',inputs.maxTradeSize,baseTokenData.symbol)
-    console.log(baseTokenData.symbol,baseTokenData.address)
-    console.log(targetTokenData.symbol,targetTokenData.address)
     monitoringPrice = true
 
     try {
         //----- Checking Price USING API -----//
-        let APIresult = await axios.get('https://api.1inch.exchange/v2.0/quote', {
-            params: {
-                fromTokenAddress: baseTokenData.address,
-                toTokenAddress: targetTokenData.address,
-                amount: web3.utils.toWei(inputs.maxTradeSize,'mwei'),
-                complexityLevel: '0',
-                parts: '0',
-                virtualParts: '0',
-                mainRouteParts: '1'
-            }
-        })
+        //let APIresult = await axios.get('https://api.1inch.exchange/v2.0/quote', {
+        //    params: {
+        //        fromTokenAddress: baseTokenData.address,
+        //        toTokenAddress: targetTokenData.address,
+        //        amount: web3.utils.toWei(inputs.maxTradeSize,'ether'),
+        //        complexityLevel: 0,
+        //        parts: 1,
+        //        virtualParts: 1,
+        //        mainRouteParts: 1
+        //    }
+        //})
         
         //----- Checking Price USING SMART CONTRACT -----//
         let SCresult = await pool.methods.getExpectedReturn(
             baseTokenData.address,
             targetTokenData.address,
-            web3.utils.toWei(inputs.maxTradeSize,'mwei'),
+            web3.utils.toWei(inputs.maxTradeSize,'ether'),
             100,
             0
         ).call()
 
 
         //----- DISTRIBUTIONS -----//
-        console.log('----- Smart Routing by API -----')
-        quotedPrice = web3.utils.fromWei(APIresult.data.fromTokenAmount,'mwei') / web3.utils.fromWei(APIresult.data.toTokenAmount, 'ether')
-        console.log('Price Quoted by API: ', quotedPrice.toString())
+        //console.log('----- Smart Routing by API -----')
+        //quotedPrice = web3.utils.fromWei(APIresult.data.fromTokenAmount,'ether') / web3.utils.fromWei(APIresult.data.toTokenAmount, 'ether')
+        //console.log('Price Quoted by API: ', quotedPrice.toString())
         //console.log('Trading',web3.utils.fromWei(APIresult.data.fromTokenAmount, 'mwei'),APIresult.data.fromToken.symbol, `(${APIresult.data.fromToken.address})`)
         //console.log('For',web3.utils.fromWei(APIresult.data.toTokenAmount, 'ether'),APIresult.data.toToken.symbol,`(${APIresult.data.toToken.address})`)
-        console.log(APIresult.data.protocols[0])
-
+        //console.log(APIresult.data.protocols[0])
+        
+        quotedPrice = 1 / (web3.utils.fromWei(SCresult.returnAmount,'ether') / inputs.maxTradeSize)
+        console.log('Price Quoted:', quotedPrice.toString(),baseTokenData.symbol,'per',targetTokenData.symbol)
         console.log('----- Distributions by Smart Contract -----')
-        console.log('Price Quoted by Smart Contract:', web3.utils.fromWei(SCresult.returnAmount, 'ether'))
         for (let index = 0; index < SCresult.distribution.length; index++) {
             console.log(splitExchanges[index], ":", SCresult.distribution[index]);
         }
 
-        /*
+        
         let currentPrice = Number(quotedPrice)
         let targetPrice = Number(inputs.maxLimitPrice)
         if (currentPrice < targetPrice) {     
             //----- Execute Buy -----//
             // Swap is only performed if current Spot Price is below the target price.
             
-            console.log('Price is right!')
+            console.log('Price is below Max Limit')
+            console.log('Executing swap...')
             
             //await tokenExchange()
 
@@ -185,9 +191,9 @@ async function monitorPrice() {
 
         //    console.log('--- Swap Complete ---')
         } else {
-            console.log('The price is too high!')
+            console.log('The price is above Max Limit')
         }
-        */
+        
 
         clearInterval(priceMonitor)
 

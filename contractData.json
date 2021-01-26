@@ -1,4 +1,10 @@
 {
+    "ETH": {
+        "type":"Ethereum"
+        ,"symbol":"ETH"
+        ,"decimals": 18
+        ,"address":"0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" 
+    },
     "USDC": {
         "type":"ERC20 Token"
         ,"symbol":"USDC"
