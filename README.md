@@ -1,6 +1,8 @@
 
+### Overview
+This script leverages 1inch's smart contracts (_not_ their API) to acquire a specified number of targetTokens where targetToken is the ERC20 token being acquired and baseToken is ETH (can be configured to an ERC20 token) being spent.
 
-## Contents
+### Contents
 
 index.js => contains all the main code for the application
 
