@@ -101,23 +101,23 @@ async function monitorPrice() {
     //  If total balance in wallet is less than target balance, continue; otherwise
     //  the target balance has been reached, exit the program.
     let balance
+    balance = await web3.eth.getBalance(process.env.ACCOUNT)
+    balance = web3.utils.fromWei(balance.toString(), 'ether')
+    console.log(baseTokenData.symbol, 'balance in Wallet: ', balance)
+    
     balance = await targetToken.methods.balanceOf(process.env.ACCOUNT).call()
     balance = web3.utils.fromWei(balance.toString(), 'ether')
     console.log(targetTokenData.symbol, 'balance in Wallet: ', balance)
     
-    balance = await web3.eth.getBalance(process.env.ACCOUNT)
-    balance = web3.utils.fromWei(balance.toString(), 'ether')
-    console.log(baseTokenData.symbol, 'balance in Wallet: ', balance)
-
     if (balance >= inputs.targetPosition) {
-        console.log('Target balance reached!')
+        console.log('Target of', inputs.targetPosition,' reached!')
         monitoringPrice = false
         clearInterval(priceMonitor)
         return
     } 
 
-    /*
-    //----- ERC20 Token Approval -----//
+    /* 
+    //----- ERC20 Token Approval -----// Approval not needed: baseToken=ETH & PrivKey is provided
     approvalStatus = JSON.parse(fs.readFileSync('approvalStatus.json'))
     currApprovedAmount = approvalStatus.approvedAmount
     if (currApprovedAmount <= maxTrade) {
@@ -134,20 +134,7 @@ async function monitorPrice() {
     monitoringPrice = true
 
     try {
-        //----- Checking Price USING API -----//
-        //let APIresult = await axios.get('https://api.1inch.exchange/v2.0/quote', {
-        //    params: {
-        //        fromTokenAddress: baseTokenData.address,
-        //        toTokenAddress: targetTokenData.address,
-        //        amount: web3.utils.toWei(inputs.maxTradeSize,'ether'),
-        //        complexityLevel: 0,
-        //        parts: 1,
-        //        virtualParts: 1,
-        //        mainRouteParts: 1
-        //    }
-        //})
-        
-        //----- Checking Price USING SMART CONTRACT -----//
+        //----- Checking Price -----//
         let SCresult = await pool.methods.getExpectedReturn(
             baseTokenData.address,
             targetTokenData.address,
@@ -155,24 +142,14 @@ async function monitorPrice() {
             100,
             0
         ).call()
-
-
-        //----- DISTRIBUTIONS -----//
-        //console.log('----- Smart Routing by API -----')
-        //quotedPrice = web3.utils.fromWei(APIresult.data.fromTokenAmount,'ether') / web3.utils.fromWei(APIresult.data.toTokenAmount, 'ether')
-        //console.log('Price Quoted by API: ', quotedPrice.toString())
-        //console.log('Trading',web3.utils.fromWei(APIresult.data.fromTokenAmount, 'mwei'),APIresult.data.fromToken.symbol, `(${APIresult.data.fromToken.address})`)
-        //console.log('For',web3.utils.fromWei(APIresult.data.toTokenAmount, 'ether'),APIresult.data.toToken.symbol,`(${APIresult.data.toToken.address})`)
-        //console.log(APIresult.data.protocols[0])
         
         quotedPrice = 1 / (web3.utils.fromWei(SCresult.returnAmount,'ether') / inputs.maxTradeSize)
         console.log('Price Quoted:', quotedPrice.toString(),baseTokenData.symbol,'per',targetTokenData.symbol)
-        console.log('----- Distributions by Smart Contract -----')
+        console.log('Distributions by Smart Contract:')
         for (let index = 0; index < SCresult.distribution.length; index++) {
-            console.log(splitExchanges[index], ":", SCresult.distribution[index]);
+            console.log('-',splitExchanges[index], ":", SCresult.distribution[index]);
         }
 
-        
         let currentPrice = Number(quotedPrice)
         let targetPrice = Number(inputs.maxLimitPrice)
         if (currentPrice < targetPrice) {     
@@ -182,20 +159,54 @@ async function monitorPrice() {
             console.log('Price is below Max Limit')
             console.log('Executing swap...')
             
-            //await tokenExchange()
+            var gasPrice = await web3.eth.getGasPrice()
+            gasPrice = web3.utils.toBN(gasPrice * 1.10) // will pay 10% above current avg. gas prices to expedite transaction
+
+            // ----- Need to figure out why this reverts
+            var gasLimit = await pool.methods.swap(
+                baseTokenData.address,
+                targetTokenData.address,
+                web3.utils.toWei(inputs.maxTradeSize,'ether'),
+                SCresult.returnAmount, //No slippage
+                SCresult.distribution,
+                0
+            ).estimateGas({
+                from: process.env.ACCOUNT,
+                value: web3.utils.toWei(inputs.maxTradeSize,'ether')
+            })
+            
+            var gasLimit = gasLimit
+            var gasPrice = await web3.eth.getGasPrice()
+            gasPrice = web3.utils.toBN(gasPrice * 1.10) // will pay 10% above current avg. gas prices to expedite transaction
+            
+            var swapExecution = await pool.methods.swap(
+                baseTokenData.address,
+                targetTokenData.address,
+                web3.utils.toWei(inputs.maxTradeSize,'ether'),
+                SCresult.returnAmount, //No slippage
+                SCresult.distribution,
+                0
+            ).send({
+                from: process.env.ACCOUNT,
+                gas: gasLimit,
+                gasPrice: gasPrice,
+                value: web3.utils.toWei(inputs.maxTradeSize,'ether')
+            })
+            
+            console.log(swapExecution)
 
             //----- Update Approval Counter -----//
             //currApprovedAmount = currApprovedAmount - maxTrade
             //var newApprovedAmount = { approvedAmount: currApprovedAmount}
             //fs.writeFileSync('./approvalStatus.json', JSON.stringify(newApprovedAmount, null, 2) , 'utf-8');
 
-        //    console.log('--- Swap Complete ---')
+            console.log('--- Swap Complete ---')
+
         } else {
             console.log('The price is above Max Limit')
         }
         
-
-        clearInterval(priceMonitor)
+        //clearInterval(priceMonitor)
 
     } catch (error) {
         console.error(error)
@@ -203,6 +214,7 @@ async function monitorPrice() {
         clearInterval(priceMonitor)
         return
     }
+    
     monitoringPrice = false
 }
 
