@@ -1,23 +1,15 @@
 
 
-## Development Plan
+## Contents
 
-### Create Config file:
- - Base Token for trading
- - Target Token to buy/sell
- - How much of the Target token we want to own {
-    - if less than current balance, Sell
-    - if more than current balance, Buy }
- - The price we want to transact with the Target Token
-    - if buying, Price is upper bound
-    - if selling, Price is lower bound
- - The Minimum amount of Base Token per transaction
- - The Maximum amount of Base Token per transaction
+index.js => contains all the main code for the application
 
+inputs.js => the "configuration file" where the user of this app would input variables
 
-### Set a variable to keep track of how much NXM we currently own
- - need a wallet address
- - need to check blance of WNXM
+.env => [NOT SHOWN] the "environment file" where the user of this app would enter sensitive variables (as of 1/27/2021: infura URL, account, and private key) 
 
-### Integrate with 1inch
- - Should only buy when a pending sell order meets criteria above
+approve.js => contains the function that submits the request for approval for an ERC20 token. As of 1/27/2021 this is n/a since the current script uses ETH which does not require approval as long as PrivKey is provided in web3 setup.
+
+approvalStatus.json => contains the current amount of baseToken approved. 
+
+contractData.json => contains a point-in-time version of the contractData.json file stored in the eth-data repository.
