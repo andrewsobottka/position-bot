@@ -13,29 +13,22 @@ const { Contract } = require('web3-eth-contract')
 const approve = require('./approve.js')
 var axios = require('axios')
 
-// Look into how I can store/read a file online; goal is to only
-//  have to update one version of this file, not keep copies in each
-//  project folder I work in.
-//const contractData = JSON.parse(fs.readFileSync('https://github.com/andrewsobottka/eth-data/blob/main/contractData.json'))
+// most up-to-date version of contractData is at https://github.com/andrewsobottka/eth-data/blob/main/contractData.json
 const contractData = JSON.parse(fs.readFileSync('./contractData.json'))
-
 
 //----- SERVER CONFIG -----//
 const PORT = process.env.PORT || 5000
 const app = express()
 const server = http.createServer(app).listen(PORT, () => console.log(`Listening on ${ PORT }`))
 
-
 //----- WEB 3 CONFIG -----//
-//const main_URL = 'https://mainnet.infura.io/v3/201292230a8a4241b6ba2b14a00fca47'// TEMPORARY FOR TESTING
-//const web3 = new Web3(main_URL)
 const web3 = new Web3(new HDWalletProvider(process.env.PRIVATE_KEY, process.env.RPC_URL))
-web3.eth.transactionConfirmationBlocks = 1;
+web3.eth.transactionConfirmationBlocks = 1; // USE FOR TESTING IN GANACHE
 
 //----- CONTRACT DETAILS for 1inch -----//
 const poolData = contractData['1inch']
 const pool = new web3.eth.Contract(poolData.abi, poolData.address)
-pool.transactionConfirmationBlocks = 1;
+pool.transactionConfirmationBlocks = 1; // USE FOR TESTING IN GANACHE
 
 //----- CONTRACT for Target Token -----//
 const targetTokenData = contractData[inputs.targetToken]
@@ -43,7 +36,7 @@ const targetToken = new web3.eth.Contract(targetTokenData.abi, targetTokenData.a
 
 //------ CONTRACT for Base Token -----//
 const baseTokenData = contractData[inputs.baseToken]
-// n/a Base Token is ETHEREUM - const baseToken = new web3.eth.Contract(baseTokenData.abi, baseTokenData.address)
+// n/a if Base Token is ETHEREUM
 
 
 //----- USER INPUTS -----//
@@ -116,8 +109,8 @@ async function monitorPrice() {
         return
     } 
 
-    /* 
-    //----- ERC20 Token Approval -----// Approval not needed: baseToken=ETH & PrivKey is provided
+
+    //----- ERC20 Token Approval -----//
     approvalStatus = JSON.parse(fs.readFileSync('approvalStatus.json'))
     currApprovedAmount = approvalStatus.approvedAmount
     if (currApprovedAmount <= maxTrade) {
@@ -127,7 +120,7 @@ async function monitorPrice() {
         fs.writeFileSync('./approvalStatus.json', JSON.stringify(newApprovedAmount, null, 2) , 'utf-8');
         return
     }
-    */
+    
 
     //----- Swap -----//
     console.log('Checking price for',inputs.maxTradeSize,baseTokenData.symbol)
@@ -162,7 +155,6 @@ async function monitorPrice() {
             var gasPrice = await web3.eth.getGasPrice()
             gasPrice = web3.utils.toBN(gasPrice * 1.10) // will pay 10% above current avg. gas prices to expedite transaction
 
-            // ----- Need to figure out why this reverts
             var gasLimit = await pool.methods.swap(
                 baseTokenData.address,
                 targetTokenData.address,
@@ -196,9 +188,9 @@ async function monitorPrice() {
             console.log(swapExecution)
 
             //----- Update Approval Counter -----//
-            //currApprovedAmount = currApprovedAmount - maxTrade
-            //var newApprovedAmount = { approvedAmount: currApprovedAmount}
-            //fs.writeFileSync('./approvalStatus.json', JSON.stringify(newApprovedAmount, null, 2) , 'utf-8');
+            currApprovedAmount = currApprovedAmount - maxTrade
+            var newApprovedAmount = { approvedAmount: currApprovedAmount}
+            fs.writeFileSync('./approvalStatus.json', JSON.stringify(newApprovedAmount, null, 2) , 'utf-8');
 
             console.log('--- Swap Complete ---')
 
